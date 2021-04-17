@@ -1,0 +1,1 @@
+- http://www.yolinux.com/TUTORIALS/LinuxTutorialMimeTypesAndApplications.html

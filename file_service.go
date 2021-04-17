@@ -3,6 +3,7 @@ package gouploadserver
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"io/ioutil"
 	"os"
@@ -27,7 +28,7 @@ func Path(path string) (bool, fs.FileInfo, []fs.FileInfo, error) {
 		}
 		return false, nil, nil, err
 	}
-	fmt.Print(fi)
+	//fmt.Print(fi)
 
 	// É um diretório?
 	// if fi.Mode().IsDir() && !strings.HasSuffix(path, "/") {
@@ -36,7 +37,7 @@ func Path(path string) (bool, fs.FileInfo, []fs.FileInfo, error) {
 	switch mode := fi.Mode(); {
 	case mode.IsDir():
 		// do directory stuff
-		fmt.Println("directory")
+		// fmt.Println("directory")
 		files, err := ioutil.ReadDir(path)
 		if err != nil {
 			return true, nil, nil, err
@@ -44,7 +45,7 @@ func Path(path string) (bool, fs.FileInfo, []fs.FileInfo, error) {
 		return true, nil, files, nil
 	case mode.IsRegular():
 		// do file stuff
-		fmt.Println("file")
+		// fmt.Println("file")
 		// file, err := ioutil.ReadFile(path)
 		// if err != nil {
 		// 	return true, nil, nil, err
@@ -66,4 +67,62 @@ func Path(path string) (bool, fs.FileInfo, []fs.FileInfo, error) {
 	// }
 
 	return false, nil, nil, nil
+}
+
+func ReadFileAndWriteToW(w io.Writer, path string, buf []byte) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	for {
+		// read a chunk
+		n, err := f.Read(buf)
+		if err != nil && err != io.EOF {
+			return err
+		}
+
+		if n == 0 {
+			break
+		}
+
+		// write a chunk
+		if _, err := w.Write(buf[:n]); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func ReaderToFile(r io.Reader, fname string, buf []byte) error {
+	// FIXME return upload file path
+	// FIXME set dir path
+	// Create a temporary file within our tmp--upload directory that follows
+	// a particular naming pattern
+	tempFile, err := ioutil.TempFile(".", "*-"+fname)
+	if err != nil {
+		return err
+	}
+	defer tempFile.Close()
+
+	for {
+		// read a chunk
+		n, err := r.Read(buf)
+		if err != nil && err != io.EOF {
+			return err
+		}
+
+		if n == 0 {
+			break
+		}
+
+		// write a chunk
+		if _, err := tempFile.Write(buf[:n]); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

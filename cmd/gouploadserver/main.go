@@ -14,7 +14,9 @@ import (
 	"gouploadserver/transport"
 	"net/http"
 	"os"
+	"runtime"
 	"strings"
+	"time"
 
 	"github.com/sirupsen/logrus"
 )
@@ -70,6 +72,13 @@ func getLogger() *logrus.Logger {
 }
 
 func main() {
+	go func() {
+		for {
+			PrintMemUsage()
+			time.Sleep(time.Second)
+		}
+	}()
+
 	logger := getLogger()
 	logger.Debug(strings.Join(os.Args, " "))
 
@@ -97,4 +106,25 @@ func main() {
 	if err != nil {
 		logger.WithError(err).Fatal("Server error")
 	}
+}
+
+// PrintMemUsage outputs the current, total and OS memory being used. As well as the number
+// of garage collection cycles completed.
+func PrintMemUsage() {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	// For info on each, see: https://golang.org/pkg/runtime/#MemStats
+	fmt.Printf("Alloc = %v MiB", bToMb(m.Alloc))
+	fmt.Printf("\tHeapAlloc = %v MiB", bToMb(m.HeapAlloc))
+	fmt.Printf("\tTotalAlloc = %v MiB", bToMb(m.TotalAlloc))
+	fmt.Printf("\tSys = %v MiB", bToMb(m.Sys))
+	fmt.Printf("\tNumGC = %v\n", m.NumGC)
+	// fmt.Printf("Alloc = %v B", m.Alloc)
+	// fmt.Printf("\tTotalAlloc = %v B", m.TotalAlloc)
+	// fmt.Printf("\tSys = %v B", m.Sys)
+	// fmt.Printf("\tNumGC = %v\n", m.NumGC)
+}
+
+func bToMb(b uint64) uint64 {
+	return b / 1024 / 1024
 }

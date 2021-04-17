@@ -29,3 +29,7 @@ gouploadserver
 ➜  cmd go list -f '{{.Target}}'
 /Users/guilherme/go/bin/cmd
 ```
+
+```sh
+go test -v -benchmem -bench=.
+```

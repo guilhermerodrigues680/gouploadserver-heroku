@@ -10,13 +10,19 @@ default: build
 clearbin:
 	rm -rf ./bin
 
-build: main.go clearbin
-	go build -v -o ./bin/$(MODULE) ./main.go
+build: cmd/gouploadserver/main.go clearbin
+	GOOS=linux GOARCH=amd64 go build -v -o ./bin/$(MODULE)-linux-amd64 ./cmd/gouploadserver/main.go
+	GOOS=windows GOARCH=amd64 go build -v -o ./bin/$(MODULE)-windows-amd64.exe ./cmd/gouploadserver/main.go
+	GOOS=darwin GOARCH=amd64 go build -v -o ./bin/$(MODULE)-darwin-amd64 ./cmd/gouploadserver/main.go
+
+.PHONY: cross
+cross: cmd/gouploadserver/main.go clearbin
+	go build -v -o ./bin/$(MODULE) ./cmd/gouploadserver/main.go
 
 .PHONY: run
 run: build
 	./bin/$(MODULE)
 
-install: main.go
+install: cmd/gouploadserver/main.go
 	go list -f '{{.Target}}'
 	go install

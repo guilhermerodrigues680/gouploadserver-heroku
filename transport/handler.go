@@ -6,8 +6,8 @@ import (
 	"html/template"
 	"io"
 	"io/ioutil"
-	"math"
 	"mime"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -142,60 +142,83 @@ func NewServer(staticDirPath string, logger *logrus.Entry) *Server {
 		// it also returns the FileHeader so we can get the Filename,
 		// the Header and the size of the file
 
-		reqFile, handler, err := r.FormFile("file")
+		mediaType, params, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 		if err != nil {
-			fmt.Println("Error Retrieving the File")
-			fmt.Println(err)
+			logger.WithError(err).Error()
 			return
 		}
-		defer reqFile.Close()
-		fmt.Printf("Uploaded File: %+v\n", handler.Filename)
-		fmt.Printf("File Size: %+v\n", handler.Size)
-		fmt.Printf("MIME Header: %+v\n", handler.Header)
+		logger.Trace(mediaType, params)
 
-		// Create a temporary file within our tmp--upload directory that follows
-		// a particular naming pattern
-		tempFile, err := ioutil.TempFile(".", "*-"+handler.Filename)
-		if err != nil {
-			fmt.Println(err)
-		}
-		defer tempFile.Close()
-
-		startTime := time.Now()
-
-		// buf := make([]byte, 1024)
-		buf := make([]byte, 1024)
-		totalRead := 0
-		lastLog := -1.0
+		boundary := params["boundary"]
+		reader := multipart.NewReader(r.Body, boundary)
 		for {
-			// read a chunk
-			n, err := reqFile.Read(buf)
-			if err != nil && err != io.EOF {
+			part, err := reader.NextPart()
+			if err != nil {
+				if err == io.EOF {
+					// Done reading body
+					break
+				}
 				logger.WithError(err).Error()
 				return
 			}
 
-			totalRead += n
-
-			if n == 0 {
-				break
-			}
-
-			progress := (float64(totalRead) / float64(handler.Size)) * 100
-			if round := math.RoundToEven(progress); lastLog != round {
-				lastLog = round
-				fmt.Printf("%.2f%% ", progress)
-			}
-			//logger.Trace(, "%")
-
-			// write a chunk
-			if _, err := tempFile.Write(buf[:n]); err != nil {
-				logger.WithError(err).Error()
+			if part.FormName() != "file" {
+				// return a validation err
+				logger.Error("FormNane != file")
 				return
 			}
+
+			contentType := part.Header.Get("Content-Type")
+			fname := part.FileName()
+			// part is an io.Reader, deal with it
+			logger.Trace(contentType, fname)
+
+			// Create a temporary file within our tmp--upload directory that follows
+			// a particular naming pattern
+			tempFile, err := ioutil.TempFile(".", "*-"+fname)
+			if err != nil {
+				fmt.Println(err)
+			}
+			defer tempFile.Close()
+
+			startTime := time.Now()
+
+			buf := make([]byte, 1024)
+			for {
+				// read a chunk
+				n, err := part.Read(buf)
+				if err != nil && err != io.EOF {
+					logger.WithError(err).Error()
+					return
+				}
+
+				if n == 0 {
+					break
+				}
+
+				// write a chunk
+				if _, err := tempFile.Write(buf[:n]); err != nil {
+					logger.WithError(err).Error()
+					return
+				}
+			}
+
+			logger.Infof("Total Upload Time: %s", time.Since(startTime))
 		}
 
-		logger.Infof("Total Upload Time: %s", time.Since(startTime))
+		// return
+
+		// reqFile, handler, err := r.FormFile("file")
+		// if err != nil {
+		// 	fmt.Println("Error Retrieving the File")
+		// 	fmt.Println(err)
+		// 	return
+		// }
+		// defer reqFile.Close()
+		// fmt.Printf("Uploaded File: %+v\n", handler.Filename)
+		// fmt.Printf("File Size: %+v\n", handler.Size)
+		// fmt.Printf("MIME Header: %+v\n", handler.Header)
+
 		// return that we have successfully uploaded our file!
 		//fmt.Fprint(w, "Successfully Uploaded File")
 	})

@@ -97,7 +97,7 @@ func main() {
 	handler := transport.NewServer(pathArg, logger.WithField("server", "handler"))
 
 	srv := &http.Server{
-		Addr:    ":8080",
+		Addr:    ":" + portFlag.value,
 		Handler: handler,
 	}
 

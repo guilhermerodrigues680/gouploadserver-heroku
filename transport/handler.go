@@ -143,7 +143,7 @@ func (s *Server) fileHandler(w http.ResponseWriter, r *http.Request, p httproute
 	// 1 - Saber Mime-Type
 	// 2 - Enviar arquivo
 
-	buf := make([]byte, 1024) // make a buffer to keep chunks that are read
+	buf := make([]byte, 4096) // make a buffer to keep chunks that are read
 	ctype, err := getContentType(name, buf)
 	if err != nil {
 		s.logger.WithError(err).Error()
@@ -197,7 +197,7 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request, p httprou
 		s.logger.Trace(contentType, fname)
 
 		startTime := time.Now()
-		buf := make([]byte, 1024) // make a buffer to keep chunks that are read
+		buf := make([]byte, 4096) // make a buffer to keep chunks that are read
 		gouploadserver.ReaderToFile(part, fname, buf)
 		s.logger.Infof("Total Upload Time: %s", time.Since(startTime))
 	}

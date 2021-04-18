@@ -21,10 +21,13 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const Version = "v0.0.0-alpha.0"
+
 var portFlag = flag.Int("port", 8000, "Port to use")
 var watchMemUsageFlag = flag.Bool("watch-mem", false, "Watch memory usage")
 var devFlag = flag.Bool("dev", false, "Use development settings")
 var keepOriginalUploadFileNameFlag = flag.Bool("keep-upload-filename", false, "Keep original upload file name: Use 'filename.ext' instead of 'filename<-random>.ext'")
+var showVersionFlag = flag.Bool("version", false, "Show version number and quit")
 var pathArg string
 
 func main() {
@@ -37,12 +40,20 @@ func main() {
 		flag.VisitAll(func(f *flag.Flag) {
 			fmt.Fprintf(flag.CommandLine.Output(), "  --%-24v %v (default %v)\n", f.Name, f.Usage, f.DefValue)
 		})
+		fmt.Fprintf(flag.CommandLine.Output(), "  --%-24v %v\n", "help", "Display usage information (this message)")
+		fmt.Fprintf(flag.CommandLine.Output(), "  -%-25v %v\n", "h", "Display usage information (this message) (shorthand)")
 		fmt.Fprintln(flag.CommandLine.Output(), "")
 		fmt.Fprintln(flag.CommandLine.Output(), "Powered By: guilhermerodrigues680")
 	}
 
 	// parses the command-line flags
 	flag.Parse()
+
+	if *showVersionFlag {
+		fmt.Fprintf(flag.CommandLine.Output(), "gouploadserver %s\n", Version)
+		fmt.Fprintln(flag.CommandLine.Output(), "\nPowered By: guilhermerodrigues680")
+		os.Exit(0)
+	}
 
 	logger := getLogger(*devFlag)
 	logger.Trace(strings.Join(os.Args, " "))

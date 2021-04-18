@@ -7,78 +7,41 @@ import (
 	"io/fs"
 	"io/ioutil"
 	"os"
+	"path"
 )
 
-var ErrNotFound error = errors.New("Not Found")
+var ErrUnrecognizedMode error = errors.New("Unrecognized mode")
 
-func Path(path string) (bool, fs.FileInfo, []fs.FileInfo, error) {
-
-	if path == "" {
-		path = "."
-	}
-
-	// O path existe?
-	fi, err := os.Stat(path)
-
+func Stat(path string) (bool, fs.FileInfo, []fs.FileInfo, error) {
+	fileinfo, err := os.Stat(path)
 	if err != nil {
-		if os.IsNotExist(err) {
-			fmt.Println("Arquivo/Diretorio nao existe", err)
-		} else {
-			fmt.Println("Erro nao reconhecido: ", err)
-		}
 		return false, nil, nil, err
 	}
-	//fmt.Print(fi)
 
-	// É um diretório?
-	// if fi.Mode().IsDir() && !strings.HasSuffix(path, "/") {
-	// }
-
-	switch mode := fi.Mode(); {
+	switch mode := fileinfo.Mode(); {
 	case mode.IsDir():
-		// do directory stuff
-		// fmt.Println("directory")
 		files, err := ioutil.ReadDir(path)
 		if err != nil {
 			return true, nil, nil, err
 		}
 		return true, nil, files, nil
 	case mode.IsRegular():
-		// do file stuff
-		// fmt.Println("file")
-		// file, err := ioutil.ReadFile(path)
-		// if err != nil {
-		// 	return true, nil, nil, err
-		// }
-		// return true, nil, file, nil
-		return false, fi, nil, nil
+		return false, fileinfo, nil, nil
+	default:
+		return false, nil, nil, fmt.Errorf("%w %s", ErrUnrecognizedMode, mode)
 	}
-
-	// files, err := ioutil.ReadDir(".")
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-
-	// // file := files[0]
-	// for _, file := range files {
-	// 	// w.Write([]byte(file.Name() + "\n"))
-	// 	fmt.Println(file.Name())
-	// 	file.Size()
-	// }
-
-	return false, nil, nil, nil
 }
 
 func ReadFileAndWriteToW(w io.Writer, path string, buf []byte) error {
-	f, err := os.Open(path)
+	file, err := os.Open(path)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer file.Close()
 
 	for {
 		// read a chunk
-		n, err := f.Read(buf)
+		n, err := file.Read(buf)
 		if err != nil && err != io.EOF {
 			return err
 		}
@@ -96,15 +59,15 @@ func ReadFileAndWriteToW(w io.Writer, path string, buf []byte) error {
 	return nil
 }
 
-func ReaderToFile(r io.Reader, dir string, fname string, buf []byte) error {
-	// FIXME return upload file path
-	// FIXME set dir path
-	// Create a temporary file within our tmp--upload directory that follows
-	// a particular naming pattern
+func ReaderToFile(r io.Reader, dir string, fname string, keepOriginalFileName bool, buf []byte) (string, error) {
 	// FIXME file permissions originais
-	tempFile, err := ioutil.TempFile(dir, "*-"+fname)
+
+	ext := path.Ext(fname)
+	name := fname[0 : len(fname)-len(ext)]
+	tempFilePattern := name + "-*" + ext
+	tempFile, err := ioutil.TempFile(dir, tempFilePattern)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer tempFile.Close()
 
@@ -112,7 +75,8 @@ func ReaderToFile(r io.Reader, dir string, fname string, buf []byte) error {
 		// read a chunk
 		n, err := r.Read(buf)
 		if err != nil && err != io.EOF {
-			return err
+			os.Remove(tempFile.Name())
+			return "", err
 		}
 
 		if n == 0 {
@@ -121,9 +85,19 @@ func ReaderToFile(r io.Reader, dir string, fname string, buf []byte) error {
 
 		// write a chunk
 		if _, err := tempFile.Write(buf[:n]); err != nil {
-			return err
+			os.Remove(tempFile.Name())
+			return "", err
 		}
 	}
 
-	return nil
+	if keepOriginalFileName {
+		finalFileName := path.Join(dir, fname)
+		err = os.Rename(tempFile.Name(), path.Join(dir, fname))
+		if err != nil {
+			return "", err
+		}
+		return finalFileName, nil
+	}
+
+	return tempFile.Name(), nil
 }

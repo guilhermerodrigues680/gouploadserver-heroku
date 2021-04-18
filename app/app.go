@@ -2,26 +2,42 @@ package app
 
 import (
 	"gouploadserver/handler"
+	"net"
 	"net/http"
+	"strconv"
 
 	"github.com/sirupsen/logrus"
 )
 
-func Run(cwd string, port string, logger *logrus.Entry) error {
+func Run(wd string, port int, keepOriginalUploadFileName bool, logger *logrus.Entry) error {
 	logger.Info("** Go Upload Server **")
-	logger.Infof("Dir: %s, Port: %s", cwd, port)
+	logger.Infof("Working directory: %s", wd)
 
-	h := handler.NewServer(cwd, logger.WithField("server", "handler"))
+	h := handler.NewServer(wd, keepOriginalUploadFileName, logger.WithField("server", "handler"))
 
 	srv := &http.Server{
-		Addr:    ":" + port,
+		Addr:    ":" + strconv.Itoa(port),
 		Handler: h,
 	}
 
-	logger.Infof("Listening on: %s", srv.Addr)
-	err := srv.ListenAndServe()
+	addrs, err := net.InterfaceAddrs()
 	if err != nil {
-		logger.WithError(err).Error("Server error")
+		logger.Errorf("Interface Addrs error: %s", err)
+		return err
+	}
+
+	for _, a := range addrs {
+		// if ipnet, ok := a.(*net.IPNet); ok && !ipnet.IP.IsLoopback() { // to ignore 127.0.0.1
+		if ipnet, ok := a.(*net.IPNet); ok {
+			if ipnet.IP.To4() != nil {
+				logger.Infof("Listening on: http://%s%s", ipnet.IP, srv.Addr)
+			}
+		}
+	}
+
+	err = srv.ListenAndServe()
+	if err != nil {
+		logger.Errorf("Server error: %s", err)
 		return err
 	}
 

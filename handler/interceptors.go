@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
 )
 
@@ -49,20 +48,20 @@ func (lw *loggingResponseWriter) WriteHeader(code int) {
 	lw.ResponseWriter.WriteHeader(code)
 }
 
-// LoggingInterceptorOnFunc é uma objeto capaz de interceptar 'httprouter.Handle'
-type LoggingInterceptorOnFunc struct {
-	logger *logrus.Entry
-}
+// // LoggingInterceptorOnFunc é uma objeto capaz de interceptar 'httprouter.Handle'
+// type LoggingInterceptorOnFunc struct {
+// 	logger *logrus.Entry
+// }
 
-func NewLoggingInterceptorOnFunc(logger *logrus.Entry) *LoggingInterceptorOnFunc {
-	return &LoggingInterceptorOnFunc{
-		logger: logger,
-	}
-}
+// func NewLoggingInterceptorOnFunc(logger *logrus.Entry) *LoggingInterceptorOnFunc {
+// 	return &LoggingInterceptorOnFunc{
+// 		logger: logger,
+// 	}
+// }
 
-func (l *LoggingInterceptorOnFunc) log(next func(w http.ResponseWriter, r *http.Request, ps httprouter.Params)) httprouter.Handle {
-	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		l.logger.Info(r.URL.Path)
-		next(w, r, ps)
-	}
-}
+// func (l *LoggingInterceptorOnFunc) log(next func(w http.ResponseWriter, r *http.Request, ps httprouter.Params)) httprouter.Handle {
+// 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+// 		l.logger.Info(r.URL.Path)
+// 		next(w, r, ps)
+// 	}
+// }

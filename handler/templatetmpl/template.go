@@ -31,6 +31,10 @@ const TemplateListFiles = `<!DOCTYPE html>
       <td>File</td>
       <td>Size</td>
     </tr>
+    <tr>
+      <td><a href="../">../</a></td>
+      <td></td>
+    </tr>
     {{ range . }}
     <tr>
       <td>
@@ -62,7 +66,7 @@ const TemplateListFiles = `<!DOCTYPE html>
 
     function sendRequestUpload(formData) {
       axios
-        .post("./upload", formData, {
+        .post("./", formData, {
           onUploadProgress: (event) => {
             const progress = Math.round((event.loaded * 100) / event.total);
             const text = progress + "% (" + formatBytes(event.loaded) + " de " + formatBytes(event.total) + ")";

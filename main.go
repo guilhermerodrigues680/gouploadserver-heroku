@@ -20,101 +20,88 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type cmdFlag struct {
-	value        string
-	name         string
-	shortName    string
-	defaultValue string
-	usage        string
-}
-
-func NewCmdFlag(name, shortName, defaultValue, usage string) *cmdFlag {
-	cf := cmdFlag{
-		value:        "",
-		name:         name,
-		shortName:    shortName,
-		defaultValue: defaultValue,
-		usage:        usage,
-	}
-	flag.StringVar(&cf.value, name, defaultValue, usage)
-	flag.StringVar(&cf.value, shortName, defaultValue, usage+" (shorthand)")
-	return &cf
-}
-
-var portFlag *cmdFlag = NewCmdFlag("port", "p", "8000", "Port to use")
-
-// FIXME flag desativar prefixo upload
+var portFlag = flag.Int("port", 8000, "Port to use")
+var watchMemUsageFlag = flag.Bool("watch-mem", false, "Watch memory usage")
+var devFlag = flag.Bool("dev", false, "Use development settings")
+var keepOriginalUploadFileNameFlag = flag.Bool("keep-upload-filename", false, "Keep original upload file name: Use 'filename.ext' instead of 'filename<-random>.ext'")
 var pathArg string
 
-func init() {
+func main() {
+	// usage: flag -h or --help
 	flag.Usage = func() {
-		fmt.Println("------------------------")
-		defer fmt.Println("------------------------")
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:\n", os.Args[0])
-		flag.PrintDefaults()
-		// fmt.Fprintf(flag.CommandLine.Output(), "Custom help %s:\n", os.Args[0])
-		// flag.VisitAll(func(f *flag.Flag) {
-		// 	fmt.Fprintf(flag.CommandLine.Output(), "    %v\n", f.Usage) // f.Name, f.Value
-		// })
+		fmt.Fprintln(flag.CommandLine.Output(), "")
+		fmt.Fprintln(flag.CommandLine.Output(), "Usage: gouploadserver [options] [path]")
+		fmt.Fprintln(flag.CommandLine.Output(), "[path] defaults to ./")
+		fmt.Fprintln(flag.CommandLine.Output(), "Options are:")
+		flag.VisitAll(func(f *flag.Flag) {
+			fmt.Fprintf(flag.CommandLine.Output(), "  --%-24v %v (default %v)\n", f.Name, f.Usage, f.DefValue)
+		})
+		fmt.Fprintln(flag.CommandLine.Output(), "")
+		fmt.Fprintln(flag.CommandLine.Output(), "Powered By: guilhermerodrigues680")
+	}
+
+	// parses the command-line flags
+	flag.Parse()
+
+	logger := getLogger(*devFlag)
+	logger.Trace(strings.Join(os.Args, " "))
+
+	if *devFlag {
+		flag.VisitAll(func(f *flag.Flag) {
+			logger.Debugf("--%v (value %v) (default %v)", f.Name, f.Value, f.DefValue)
+		})
+	}
+
+	if *watchMemUsageFlag {
+		go func() {
+			for {
+				time.Sleep(time.Second)
+				PrintMemUsage(logger.WithField("log", "memstats"))
+			}
+		}()
+	}
+
+	wd := flag.Arg(0)
+	if wd == "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			logger.Fatal(err)
+		}
+		wd = cwd
+	}
+
+	err := app.Run(wd, *portFlag, *keepOriginalUploadFileNameFlag, logger.WithField("app", "run"))
+	if err != nil {
+		logger.Fatal(err)
 	}
 }
 
-func getLogger() *logrus.Logger {
+func getLogger(development bool) *logrus.Logger {
 	logger := logrus.New()
 	logger.SetFormatter(&logrus.TextFormatter{
 		ForceColors:            true,
 		FullTimestamp:          true,
-		DisableLevelTruncation: true,
-		PadLevelText:           true,
+		DisableLevelTruncation: development,
 	})
-	logger.SetLevel(logrus.TraceLevel) // log all
-	logger.SetOutput(os.Stdout)        // Output to stdout instead of the default stderr
+
+	if development {
+		logger.SetLevel(logrus.TraceLevel) // log all
+	} else {
+		logger.SetLevel(logrus.InfoLevel) // log only info and above
+	}
+
+	logger.SetOutput(os.Stdout) // Output to stdout instead of the default stderr
 	return logger
 }
 
-func main() {
-	go func() {
-		for {
-			PrintMemUsage()
-			time.Sleep(time.Second)
-		}
-	}()
-
-	logger := getLogger()
-	logger.Debug(strings.Join(os.Args, " "))
-
-	flag.Parse()
-	// FIXME flag desativar path arg e usar cwd defautl
-	pathArg = flag.Arg(0)
-	if pathArg == "" {
-		logger.Error("Path Arg Not Found")
-		flag.Usage()
-		os.Exit(1)
+func PrintMemUsage(logger *logrus.Entry) {
+	// For info, see: https://golang.org/pkg/runtime/#MemStats
+	bToMb := func(b uint64) uint64 {
+		return b / 1024 / 1024
 	}
 
-	err := app.Run(pathArg, portFlag.value, logger.WithField("app", "run"))
-	if err != nil {
-		logger.WithError(err).Fatal(err)
-	}
-}
-
-// PrintMemUsage outputs the current, total and OS memory being used. As well as the number
-// of garage collection cycles completed.
-func PrintMemUsage() {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
-	// For info on each, see: https://golang.org/pkg/runtime/#MemStats
-	fmt.Printf("Alloc = %v MiB", bToMb(m.Alloc))
-	fmt.Printf("\tHeapAlloc = %v MiB", bToMb(m.HeapAlloc))
-	fmt.Printf("\tTotalAlloc = %v MiB", bToMb(m.TotalAlloc))
-	fmt.Printf("\tSys = %v MiB", bToMb(m.Sys))
-	fmt.Printf("\tNumGC = %v\n", m.NumGC)
-	// fmt.Printf("Alloc = %v B", m.Alloc)
-	// fmt.Printf("\tTotalAlloc = %v B", m.TotalAlloc)
-	// fmt.Printf("\tSys = %v B", m.Sys)
-	// fmt.Printf("\tNumGC = %v\n", m.NumGC)
-}
-
-func bToMb(b uint64) uint64 {
-	return b / 1024 / 1024
+	logger.Infof("Alloc = %v MiB\tHeapAlloc = %v MiB\tTotalAlloc = %v MiB\tSys = %v MiB\tNumGC = %v",
+		bToMb(m.Alloc), bToMb(m.HeapAlloc), bToMb(m.TotalAlloc), bToMb(m.Sys), m.NumGC)
 }

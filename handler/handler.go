@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
 	"gouploadserver/filemanager"
 	"gouploadserver/handler/templatetmpl"
@@ -15,38 +16,29 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
 )
 
 type Server struct {
-	r             *httprouter.Router
-	logger        *logrus.Entry
-	staticDirPath string
+	r                          *httprouter.Router
+	logger                     *logrus.Entry
+	staticDirPath              string
+	keepOriginalUploadFileName bool
 }
 
-func NewServer(staticDirPath string, logger *logrus.Entry) *Server {
+func NewServer(staticDirPath string, keepOriginalUploadFileName bool, logger *logrus.Entry) *Server {
 	router := httprouter.New()
 	s := Server{
-		r:             router,
-		logger:        logger,
-		staticDirPath: staticDirPath,
+		r:                          router,
+		logger:                     logger,
+		staticDirPath:              staticDirPath,
+		keepOriginalUploadFileName: keepOriginalUploadFileName,
 	}
 
-	// router.NotFound = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-	// 	//http.ServeFile(w, r, "static/404.html")
-	// 	logger.Info("oaoaoao")
-	// })
-
-	// FIXME remover este log
-	logReq := NewLoggingInterceptorOnFunc(logger.WithField("server", "interceptor-on-func"))
-
-	// fileServer := http.FileServer(http.Dir(staticDirPath))
-	// fs := newFileServer()
-	router.GET("/*filepath", logReq.log(s.fileHandler))
-	router.POST("/*uploadpath", s.uploadHandler)
+	router.GET("/*filepath", s.fileHandler)
+	router.POST("/*dirpath", s.uploadHandler)
 
 	return &s
 }
@@ -57,13 +49,13 @@ func (f *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) fileHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	fileUrlPath := p.ByName("filepath")
+	filePath := path.Join(s.staticDirPath, ".", fileUrlPath)
+	s.logger.Trace(filePath)
 
-	// r.URL.Path = p.ByName("filepath")
-	name := path.Join(s.staticDirPath, ".") + p.ByName("filepath")
-	s.logger.Info(name)
-
-	isDir, file, files, err := filemanager.Path(name)
+	isDir, file, files, err := filemanager.Stat(filePath)
 	if err != nil {
+		s.logger.Error(err)
 		if os.IsNotExist(err) {
 			w.WriteHeader(http.StatusNotFound)
 		} else {
@@ -74,23 +66,22 @@ func (s *Server) fileHandler(w http.ResponseWriter, r *http.Request, p httproute
 	}
 
 	if isDir {
-		if !strings.HasSuffix(name, "/") {
-			s.logger.Trace("isDir but not HasSuffix '/'")
-			http.Redirect(w, r, name+"/", http.StatusFound)
+		// isDir but not HasSuffix '/'
+		if !strings.HasSuffix(fileUrlPath, "/") {
+			http.Redirect(w, r, fileUrlPath+"/", http.StatusFound)
 			return
 		}
 
+		// Sort by name
 		sort.Slice(files, func(i, j int) bool {
 			return strings.ToLower(files[i].Name()) < strings.ToLower(files[j].Name())
 		})
-
-		s.logger.Trace("isDir")
 
 		t, err := template.New("files").Funcs(template.FuncMap{
 			"formatBytes": formatBytes,
 		}).Parse(templatetmpl.TemplateListFiles)
 		if err != nil {
-			s.logger.WithError(err).Error()
+			s.logger.Errorf("Create template error: %s", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -100,51 +91,44 @@ func (s *Server) fileHandler(w http.ResponseWriter, r *http.Request, p httproute
 
 		err = t.Execute(w, files)
 		if err != nil {
-			s.logger.WithError(err).Error()
+			s.logger.Errorf("Execute template error: %s", err)
 			return
 		}
 
 		return
 	}
 
-	// Is File
-	s.logger.Trace(file) //FIXME file não usado
-
-	// 1 - Saber Mime-Type
-	// 2 - Enviar arquivo
-
+	// If is File
 	// FIXME comparar desempenho bufio
 	buf := make([]byte, 4096) // make a buffer to keep chunks that are read
-	ctype, err := getContentType(name, buf)
+	ctype, err := getContentType(filePath, buf)
 	if err != nil {
-		s.logger.WithError(err).Error()
+		s.logger.Errorf("Get Content-Type error: %s", err)
 		return
 	}
 
-	s.logger.Trace("Content-Type", ctype)
-	s.logger.Trace("Content-Type", ctype)
 	w.Header().Set("Content-Type", ctype)
 	w.Header().Set("Content-Length", strconv.FormatInt(file.Size(), 10))
+	s.logger.Tracef("Content-Type: %s, Content-Length: %d", ctype, file.Size())
 	w.WriteHeader(http.StatusOK)
 
-	filemanager.ReadFileAndWriteToW(w, name, buf)
+	err = filemanager.ReadFileAndWriteToW(w, filePath, buf)
+	if err != nil {
+		s.logger.Errorf("Read File And Write To W Error: %s", err)
+		return
+	}
 }
 
 func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	// Parse our multipart form, 10 << 20 specifies a maximum
-	// upload of 10 MB files.
-	// r.ParseMultipartForm(10 << 20)
-	// FormFile returns the first file for the given key `myFile`
-	// it also returns the FileHeader so we can get the Filename,
-	// the Header and the size of the file
-
-	// r.URL.Path = p.ByName("filepath")
-	uploadPath := path.Join(s.staticDirPath, ".", path.Dir(p.ByName("uploadpath")))
-	s.logger.Info(uploadPath)
+	dirUrlPath := p.ByName("dirpath")
+	dirPath := path.Join(s.staticDirPath, ".", path.Dir(dirUrlPath))
+	s.logger.Trace(dirPath)
 
 	mediaType, params, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil {
-		s.logger.WithError(err).Error()
+		s.logger.Errorf("Parse Media Type error: %s", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(err.Error()))
 		return
 	}
 	s.logger.Trace(mediaType, params)
@@ -158,42 +142,40 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request, p httprou
 				// Done reading body
 				break
 			}
-			s.logger.WithError(err).Error()
+			s.logger.Errorf("Multipart Reader NextPart error: %s", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(err.Error()))
 			return
 		}
 
+		// only accept fieldname == "file", otherwise, return a validation err
 		if part.FormName() != "file" {
-			// return a validation err
-			s.logger.Errorf("FormName != file. got %v want %v", part.FormName(), "file")
+			s.logger.Errorf("Field Name != 'file'. Got %s", part.FormName())
+			w.WriteHeader(http.StatusBadRequest)
+			fmt.Fprintf(w, "Field Name != 'file'. Got %s", part.FormName())
 			return
 		}
 
-		// FIXME Nao usado
-		contentType := part.Header.Get("Content-Type")
+		contentType := part.Header.Get("Content-Type") // FIXME Not used
 		fname := part.FileName()
-		s.logger.Trace(contentType, fname)
+		s.logger.Infof("multipart/form-data Content-Type: %s, Filename: %s", contentType, fname)
 
-		startTime := time.Now()
 		buf := make([]byte, 4096) // make a buffer to keep chunks that are read
-		filemanager.ReaderToFile(part, uploadPath, fname, buf)
-		s.logger.Infof("Total Upload Time: %s", time.Since(startTime))
+		fileSent, err := filemanager.ReaderToFile(part, dirPath, fname, s.keepOriginalUploadFileName, buf)
+		if err != nil {
+			if errors.Is(err, io.ErrUnexpectedEOF) {
+				s.logger.Errorf("Reader To File error, Client closed the connection: %s", err)
+				w.WriteHeader(http.StatusBadRequest)
+				w.Write([]byte(err.Error()))
+			} else {
+				s.logger.Errorf("Reader To File error: %s", err)
+				w.WriteHeader(http.StatusInternalServerError)
+				w.Write([]byte(err.Error()))
+			}
+			return
+		}
+		s.logger.Infof("File sent: %s", fileSent)
 	}
-
-	// return
-
-	// reqFile, handler, err := r.FormFile("file")
-	// if err != nil {
-	// 	fmt.Println("Error Retrieving the File")
-	// 	fmt.Println(err)
-	// 	return
-	// }
-	// defer reqFile.Close()
-	// fmt.Printf("Uploaded File: %+v\n", handler.Filename)
-	// fmt.Printf("File Size: %+v\n", handler.Size)
-	// fmt.Printf("MIME Header: %+v\n", handler.Header)
-
-	// return that we have successfully uploaded our file!
-	//fmt.Fprint(w, "Successfully Uploaded File")
 }
 
 // helpers

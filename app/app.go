@@ -1,10 +1,11 @@
 package app
 
 import (
-	"gouploadserver/handler"
 	"net"
 	"net/http"
 	"strconv"
+
+	"github.com/guilhermerodrigues680/gouploadserver/handler"
 
 	"github.com/sirupsen/logrus"
 )

@@ -11,11 +11,12 @@ package main
 import (
 	"flag"
 	"fmt"
-	"gouploadserver/app"
 	"os"
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/guilhermerodrigues680/gouploadserver/app"
 
 	"github.com/sirupsen/logrus"
 )

@@ -1,4 +1,4 @@
-module gouploadserver
+module github.com/guilhermerodrigues680/gouploadserver
 
 go 1.16
 

@@ -3,8 +3,6 @@ package handler
 import (
 	"errors"
 	"fmt"
-	"gouploadserver/filemanager"
-	"gouploadserver/handler/templatetmpl"
 	"html/template"
 	"io"
 	"mime"
@@ -16,6 +14,9 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/guilhermerodrigues680/gouploadserver/filemanager"
+	"github.com/guilhermerodrigues680/gouploadserver/handler/templatetmpl"
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"

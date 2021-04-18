@@ -1,4 +1,4 @@
-package gouploadserver
+package filemanager
 
 import (
 	"errors"

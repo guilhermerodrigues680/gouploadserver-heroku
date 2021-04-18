@@ -1,8 +1,8 @@
-package transport
+package handler
 
 import (
 	"bytes"
-	"gouploadserver"
+	"gouploadserver/filemanager"
 	"io"
 	"io/ioutil"
 	"mime/multipart"
@@ -72,7 +72,7 @@ func TestFileHandlerStream(t *testing.T) {
 	var bufferR bytes.Buffer
 	name := path.Join(s.staticDirPath, ".") + filepath
 	buf := make([]byte, 4096)
-	gouploadserver.ReadFileAndWriteToW(&bufferR, name, buf)
+	filemanager.ReadFileAndWriteToW(&bufferR, name, buf)
 
 	bufferF, err := ioutil.ReadAll(rr.Body)
 	if err != nil {

@@ -11,8 +11,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"gouploadserver/transport"
-	"net/http"
+	"gouploadserver/app"
 	"os"
 	"runtime"
 	"strings"
@@ -93,21 +92,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	//
-	logger.Info("** Go Upload Server **")
-	logger.Infof("Path: %s, Port: %s", pathArg, portFlag.value)
-
-	handler := transport.NewServer(pathArg, logger.WithField("server", "handler"))
-
-	srv := &http.Server{
-		Addr:    ":" + portFlag.value,
-		Handler: handler,
-	}
-
-	logger.Infof("Listening on: %s", srv.Addr)
-	err := srv.ListenAndServe()
+	err := app.Run(pathArg, portFlag.value, logger.WithField("app", "run"))
 	if err != nil {
-		logger.WithError(err).Fatal("Server error")
+		logger.WithError(err).Fatal(err)
 	}
 }
 

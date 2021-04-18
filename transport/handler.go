@@ -82,7 +82,7 @@ const templ = `<!DOCTYPE html>
 
     function sendRequestUpload(formData) {
       axios
-        .post("/upload", formData, {
+        .post("./upload", formData, {
           onUploadProgress: (event) => {
             const progress = Math.round((event.loaded * 100) / event.total);
             const text = progress + "% (" + formatBytes(event.loaded) + " de " + formatBytes(event.total) + ")";
@@ -138,7 +138,7 @@ func NewServer(staticDirPath string, logger *logrus.Entry) *Server {
 	// fileServer := http.FileServer(http.Dir(staticDirPath))
 	// fs := newFileServer()
 	router.GET("/*filepath", logReq.log(s.fileHandler))
-	router.POST("/upload", s.uploadHandler)
+	router.POST("/*uploadpath", s.uploadHandler)
 
 	return &s
 }
@@ -205,6 +205,7 @@ func (s *Server) fileHandler(w http.ResponseWriter, r *http.Request, p httproute
 	// 1 - Saber Mime-Type
 	// 2 - Enviar arquivo
 
+	// FIXME comparar desempenho bufio
 	buf := make([]byte, 4096) // make a buffer to keep chunks that are read
 	ctype, err := getContentType(name, buf)
 	if err != nil {
@@ -228,6 +229,10 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request, p httprou
 	// FormFile returns the first file for the given key `myFile`
 	// it also returns the FileHeader so we can get the Filename,
 	// the Header and the size of the file
+
+	// r.URL.Path = p.ByName("filepath")
+	uploadPath := path.Join(s.staticDirPath, ".", path.Dir(p.ByName("uploadpath")))
+	s.logger.Info(uploadPath)
 
 	mediaType, params, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil {
@@ -262,7 +267,7 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request, p httprou
 
 		startTime := time.Now()
 		buf := make([]byte, 4096) // make a buffer to keep chunks that are read
-		gouploadserver.ReaderToFile(part, fname, buf)
+		gouploadserver.ReaderToFile(part, uploadPath, fname, buf)
 		s.logger.Infof("Total Upload Time: %s", time.Since(startTime))
 	}
 

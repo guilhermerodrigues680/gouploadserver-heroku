@@ -96,12 +96,13 @@ func ReadFileAndWriteToW(w io.Writer, path string, buf []byte) error {
 	return nil
 }
 
-func ReaderToFile(r io.Reader, fname string, buf []byte) error {
+func ReaderToFile(r io.Reader, dir string, fname string, buf []byte) error {
 	// FIXME return upload file path
 	// FIXME set dir path
 	// Create a temporary file within our tmp--upload directory that follows
 	// a particular naming pattern
-	tempFile, err := ioutil.TempFile(".", "*-"+fname)
+	// FIXME file permissions originais
+	tempFile, err := ioutil.TempFile(dir, "*-"+fname)
 	if err != nil {
 		return err
 	}

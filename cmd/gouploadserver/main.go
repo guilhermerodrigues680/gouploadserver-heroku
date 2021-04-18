@@ -43,6 +43,8 @@ func NewCmdFlag(name, shortName, defaultValue, usage string) *cmdFlag {
 }
 
 var portFlag *cmdFlag = NewCmdFlag("port", "p", "8000", "Port to use")
+
+// FIXME flag desativar prefixo upload
 var pathArg string
 
 func init() {
@@ -83,6 +85,7 @@ func main() {
 	logger.Debug(strings.Join(os.Args, " "))
 
 	flag.Parse()
+	// FIXME flag desativar path arg e usar cwd defautl
 	pathArg = flag.Arg(0)
 	if pathArg == "" {
 		logger.Error("Path Arg Not Found")

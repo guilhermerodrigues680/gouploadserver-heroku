@@ -1,6 +1,7 @@
 package transport
 
 import (
+	"fmt"
 	"gouploadserver"
 	"html/template"
 	"io"
@@ -10,6 +11,8 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -57,7 +60,7 @@ const templ = `<!DOCTYPE html>
           <a href="{{ .Name }}">{{ .Name }}</a>
         {{ end }}
       </td>
-      <td>{{ .Size }}</td>
+      <td>{{ formatBytes .Size }}</td>
     </tr>
     {{ end }} 
   </table>
@@ -169,9 +172,15 @@ func (s *Server) fileHandler(w http.ResponseWriter, r *http.Request, p httproute
 			return
 		}
 
+		sort.Slice(files, func(i, j int) bool {
+			return strings.ToLower(files[i].Name()) < strings.ToLower(files[j].Name())
+		})
+
 		s.logger.Trace("isDir")
 
-		t, err := template.New("files").Parse(templ)
+		t, err := template.New("files").Funcs(template.FuncMap{
+			"formatBytes": formatBytes,
+		}).Parse(templ)
 		if err != nil {
 			s.logger.WithError(err).Error()
 			w.WriteHeader(http.StatusInternalServerError)
@@ -204,7 +213,9 @@ func (s *Server) fileHandler(w http.ResponseWriter, r *http.Request, p httproute
 	}
 
 	s.logger.Trace("Content-Type", ctype)
+	s.logger.Trace("Content-Type", ctype)
 	w.Header().Set("Content-Type", ctype)
+	w.Header().Set("Content-Length", strconv.FormatInt(file.Size(), 10))
 	w.WriteHeader(http.StatusOK)
 
 	gouploadserver.ReadFileAndWriteToW(w, name, buf)
@@ -293,4 +304,17 @@ func getContentType(path string, buf []byte) (string, error) {
 	}
 
 	return ctype, nil
+}
+
+func formatBytes(b int64) string {
+	const unit = 1024 // ByteCountIEC
+	if b < unit {
+		return fmt.Sprintf("%d B", b)
+	}
+	div, exp := int64(unit), 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %ciB", float64(b)/float64(div), "KMGTPE"[exp])
 }

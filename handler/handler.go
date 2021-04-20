@@ -27,19 +27,25 @@ type Server struct {
 	logger                     *logrus.Entry
 	staticDirPath              string
 	keepOriginalUploadFileName bool
+	spaMode                    bool
 }
 
-func NewServer(staticDirPath string, keepOriginalUploadFileName bool, logger *logrus.Entry) *Server {
+func NewServer(staticDirPath string, keepOriginalUploadFileName bool, spaMode bool, logger *logrus.Entry) *Server {
 	router := httprouter.New()
 	s := Server{
 		r:                          router,
 		logger:                     logger,
 		staticDirPath:              staticDirPath,
 		keepOriginalUploadFileName: keepOriginalUploadFileName,
+		spaMode:                    spaMode,
 	}
 
-	router.GET("/*filepath", s.fileHandler)
-	router.POST("/*dirpath", s.uploadHandler)
+	if s.spaMode {
+		router.GET("/*filepath", s.spaFileHandler)
+	} else {
+		router.GET("/*filepath", s.fileHandler)
+		router.POST("/*dirpath", s.uploadHandler)
+	}
 
 	return &s
 }
@@ -120,6 +126,79 @@ func (s *Server) fileHandler(w http.ResponseWriter, r *http.Request, p httproute
 	}
 }
 
+// spaFileHandler is a handler for Single Page Aplications (SPA).
+// Single Page Aplications (SPA), são aplicações que possuem uma única página o 'index.html'
+// Essas aplicações podem usar a History API do HTML5 para simular uma navegação entre páginas.
+// Porém essa abordagem tem um problema que é quando o usuário faz o refresh na página, pois como
+// a rota no histórico foi programada, ela não existirá no servidor. Assim para atender essas
+// aplicações é necessário que o servidor não envie um Status 404 Not Found nessas situações e
+// sim o proprio 'index.html', pois a SPA se encaregará de renderizar a página correta ou exibir
+// um erro.
+// Ex: https://router.vuejs.org/guide/essentials/history-mode.html
+func (s *Server) spaFileHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	indexPath := path.Join(s.staticDirPath, "./index.html")
+
+	fileUrlPath := p.ByName("filepath")
+	filePath := path.Join(s.staticDirPath, ".", fileUrlPath)
+
+	// root requests receive the index.html file
+	if fileUrlPath == "/" || fileUrlPath == "" {
+		filePath = indexPath
+	}
+
+	s.logger.Trace(filePath)
+
+	fileinfo, err := os.Stat(filePath)
+	if err != nil {
+		if os.IsNotExist(err) && filePath == indexPath {
+			// index.html not found returns a 404 status
+			s.logger.Error(err)
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte(err.Error()))
+
+		} else if os.IsNotExist(err) {
+			_, err = os.Stat(indexPath)
+			if err != nil && os.IsNotExist(err) {
+				w.WriteHeader(http.StatusNotFound)
+				w.Write([]byte(err.Error()))
+
+			} else if err != nil {
+				// unknown error returns an internal server error
+				s.logger.Error(err)
+				w.WriteHeader(http.StatusInternalServerError)
+				w.Write([]byte(err.Error()))
+			}
+
+			s.logger.Infof("%s Not Found. Responding to the request with the index.html file", filePath)
+			err = s.writeFileToW(w, indexPath)
+			if err != nil {
+				s.logger.Error(err)
+				return
+			}
+
+		} else {
+			// unknown error returns an internal server error
+			s.logger.Error(err)
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(err.Error()))
+		}
+
+		return
+	}
+
+	if !fileinfo.Mode().IsRegular() {
+		s.logger.Errorf("The file is not regular: %s", fileinfo.Name())
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "The file is not regular: %s", fileinfo.Name())
+		return
+	}
+
+	err = s.writeFileToW(w, filePath)
+	if err != nil {
+		s.logger.Errorf("Write File To W Error: %s", err)
+	}
+}
+
 func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	dirUrlPath := p.ByName("dirpath")
 	dirPath := path.Join(s.staticDirPath, ".", path.Dir(dirUrlPath))
@@ -177,6 +256,38 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request, p httprou
 		}
 		s.logger.Infof("File sent: %s", fileSent)
 	}
+}
+
+func (s *Server) writeFileToW(w http.ResponseWriter, path string) error {
+	fileinfo, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+
+	if !fileinfo.Mode().IsRegular() {
+		return errors.New("The file is not regular")
+	}
+
+	// FIXME comparar desempenho bufio
+	buf := make([]byte, 4096) // make a buffer to keep chunks that are read
+	ctype, err := getContentType(path, buf)
+	if err != nil {
+		s.logger.Errorf("Get Content-Type error: %s", err)
+		return err
+	}
+
+	w.Header().Set("Content-Type", ctype)
+	w.Header().Set("Content-Length", strconv.FormatInt(fileinfo.Size(), 10))
+	s.logger.Tracef("Content-Type: %s, Content-Length: %s", w.Header().Get("Content-Type"), w.Header().Get("Content-Length"))
+	w.WriteHeader(http.StatusOK)
+
+	err = filemanager.ReadFileAndWriteToW(w, path, buf)
+	if err != nil {
+		s.logger.Errorf("Read File And Write To W Error: %s", err)
+		return err
+	}
+
+	return nil
 }
 
 // helpers

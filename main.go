@@ -28,6 +28,7 @@ var watchMemUsageFlag = flag.Bool("watch-mem", false, "Watch memory usage")
 var devFlag = flag.Bool("dev", false, "Use development settings")
 var keepOriginalUploadFileNameFlag = flag.Bool("keep-upload-filename", false, "Keep original upload file name: Use 'filename.ext' instead of 'filename<-random>.ext'")
 var showVersionFlag = flag.Bool("version", false, "Show version number and quit")
+var spaFlag = flag.Bool("spa", false, "Return to all files not found /index.html")
 var pathArg string
 
 func main() {
@@ -82,7 +83,7 @@ func main() {
 		wd = cwd
 	}
 
-	err := app.Run(wd, *portFlag, *keepOriginalUploadFileNameFlag, logger.WithField("app", "run"))
+	err := app.Run(wd, *portFlag, *keepOriginalUploadFileNameFlag, *spaFlag, logger.WithField("app", "run"))
 	if err != nil {
 		logger.Fatal(err)
 	}

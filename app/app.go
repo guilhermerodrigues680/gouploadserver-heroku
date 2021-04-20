@@ -10,11 +10,11 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func Run(wd string, port int, keepOriginalUploadFileName bool, logger *logrus.Entry) error {
+func Run(wd string, port int, keepOriginalUploadFileName bool, spaMode bool, logger *logrus.Entry) error {
 	logger.Info("** Go Upload Server **")
 	logger.Infof("Working directory: %s", wd)
 
-	h := handler.NewServer(wd, keepOriginalUploadFileName, logger.WithField("server", "handler"))
+	h := handler.NewServer(wd, keepOriginalUploadFileName, spaMode, logger.WithField("server", "handler"))
 
 	srv := &http.Server{
 		Addr:    ":" + strconv.Itoa(port),

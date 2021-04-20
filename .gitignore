@@ -4,7 +4,6 @@ __debug_bin
 
 # ignore some test files 
 test/mimetype/large-file.mp4
-test/spa
 
 # others files
 .DS_Store

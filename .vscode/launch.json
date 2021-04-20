@@ -12,6 +12,15 @@
             "program": "${workspaceFolder}/main.go",
             "cwd": "${workspaceFolder}",
             "args": ["--dev"]
+        },
+        {
+            "name": "Launch Tool SPA",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "${workspaceFolder}/main.go",
+            "cwd": "${workspaceFolder}",
+            "args": ["--dev", "--spa", "test/spa/dist"]
         }
     ]
 }

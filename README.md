@@ -1,5 +1,6 @@
 # GO Upload Server - Command Line Tool
 [![Go Reference](https://pkg.go.dev/badge/github.com/guilhermerodrigues680/gouploadserver.svg)](https://pkg.go.dev/github.com/guilhermerodrigues680/gouploadserver)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](./LICENSE)
 
 O **GO Upload Server** foi escrito para ser agil e permitir a inicialização rápida de um servidor de arquivos a partir de um diretório.
 
@@ -104,8 +105,20 @@ make install
 gouploadserver
 ```
 
+## Versionamento
+
+Este projeto segue o [Versionamento Semântico 2.0.0](https://semver.org/lang/pt-BR/spec/v2.0.0.html).
+
+<!-- ## Changelog -->
+<!-- https://keepachangelog.com/en/1.0.0/ -->
+
+## License
+Este projeto está licenciado sob os termos da licença MIT. Veja [LICENSE](./LICENSE).
+
+## Annotations
+
 <details>
-<summary><h2>References</h2></summary>
+<summary>Annotations</summary>
 <br>
 - https://www.digitalocean.com/community/tutorials/how-to-build-and-install-go-programs-pt
 - https://golang.org/doc/tutorial/compile-install
@@ -127,5 +140,4 @@ TZ=GMT date +"%Y%m%d%H%M%S"
 https://pkg.go.dev/github.com/guilhermerodrigues680/gouploadserver
 
 git tag v0.0.0-alpha.0-$(date -u +"%Y%m%d%H%M%S")
-
 </details>

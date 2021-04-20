@@ -18,6 +18,7 @@ Então para ter um servidor personalizável, com novas funcionalidades e agil es
 ## Features
 - Servidor de arquivos.
 - Servidor websites pois implementa  MIME types.
+- Possui o modo Servidor de Single Page Aplications (SPA) que implementa o catch-all fallback para `/index.html`.
 - Baixíssimo consumo de memória.
 - Alteração fácil da porta do servidor via flag
 - Navegador de arquivos com opção para upload de arquivo no diretório navegado.
@@ -34,7 +35,7 @@ go get -u guilhermerodrigues680/gouploadserver
 ### Instalação com binários pré-compilados (qualquer sistema operacional) 
 Para instalar a versão mais recente do gouploadserver a partir de binários pré-compilados, siga estas instruções:
 
-1. Baixe manualmente em [github.com/guilhermerodrigues680/gouploadserver/releases](https://github.com/guilhermerodrigues680/gouploadserver/releases) o arquivo zip correspondente ao seu sistema operacional e arquitetura do computador (gouploadserver-<version>-<os><arch>.zip), ou baixe o arquivo usando comandos como os seguintes:
+1. Baixe manualmente em [github.com/guilhermerodrigues680/gouploadserver/releases](https://github.com/guilhermerodrigues680/gouploadserver/releases) o arquivo zip correspondente ao seu sistema operacional e arquitetura do computador (`gouploadserver-<version>-<os><arch>.zip`), ou baixe o arquivo usando comandos como os seguintes:
 
 ```sh
 $ PR_REL="https://github.com/guilhermerodrigues680/gouploadserver/releases"

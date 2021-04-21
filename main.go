@@ -21,7 +21,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const Version = "v0.0.1"
+const Version = "v0.0.2-alpha.0"
 
 var portFlag = flag.Int("port", 8000, "Port to use")
 var watchMemUsageFlag = flag.Bool("watch-mem", false, "Watch memory usage")

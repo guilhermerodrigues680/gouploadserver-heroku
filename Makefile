@@ -1,5 +1,5 @@
 MODULE=gouploadserver
-VERSION=v0.0.0-alpha.0
+VERSION=v0.0.1
 BUILDTIME=$(shell date +"%Y-%m-%dT%T%z")
 # FIXME add LDFLAGS
 # LDFLAGS= -ldflags '-X ...version=$(VERSION) -X ....buildTime=$(BUILDTIME)'

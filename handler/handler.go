@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"io/ioutil"
 	"mime"
 	"mime/multipart"
 	"net/http"
@@ -15,7 +16,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/guilhermerodrigues680/gouploadserver/filemanager"
 	"github.com/guilhermerodrigues680/gouploadserver/handler/templatetmpl"
 
 	"github.com/julienschmidt/httprouter"
@@ -60,69 +60,35 @@ func (s *Server) fileHandler(w http.ResponseWriter, r *http.Request, p httproute
 	filePath := path.Join(s.staticDirPath, ".", fileUrlPath)
 	s.logger.Trace(filePath)
 
-	isDir, file, files, err := filemanager.Stat(filePath)
+	fileinfo, err := os.Stat(filePath)
 	if err != nil {
-		s.logger.Error(err)
-		if os.IsNotExist(err) {
-			w.WriteHeader(http.StatusNotFound)
+		if errors.Is(err, os.ErrNotExist) {
+			http.Error(w, err.Error(), http.StatusNotFound)
 		} else {
-			w.WriteHeader(http.StatusInternalServerError)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
-		w.Write([]byte(err.Error()))
 		return
 	}
 
-	if isDir {
+	switch mode := fileinfo.Mode(); {
+	case mode.IsDir():
 		// isDir but not HasSuffix '/'
 		if !strings.HasSuffix(fileUrlPath, "/") {
 			http.Redirect(w, r, fileUrlPath+"/", http.StatusFound)
 			return
 		}
 
-		// Sort by name
-		sort.Slice(files, func(i, j int) bool {
-			return strings.ToLower(files[i].Name()) < strings.ToLower(files[j].Name())
-		})
-
-		t, err := template.New("files").Funcs(template.FuncMap{
-			"formatBytes": formatBytes,
-		}).Parse(templatetmpl.TemplateListFiles)
+		err := sendDirFileListToClient(w, filePath)
 		if err != nil {
-			s.logger.Errorf("Create template error: %s", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
-
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.WriteHeader(http.StatusOK)
-
-		err = t.Execute(w, files)
+	case mode.IsRegular():
+		err := sendFileToClient(w, filePath)
 		if err != nil {
-			s.logger.Errorf("Execute template error: %s", err)
-			return
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
-
-		return
-	}
-
-	// If is File
-	// FIXME comparar desempenho bufio
-	buf := make([]byte, 4096) // make a buffer to keep chunks that are read
-	ctype, err := getContentType(filePath, buf)
-	if err != nil {
-		s.logger.Errorf("Get Content-Type error: %s", err)
-		return
-	}
-
-	w.Header().Set("Content-Type", ctype)
-	w.Header().Set("Content-Length", strconv.FormatInt(file.Size(), 10))
-	s.logger.Tracef("Content-Type: %s, Content-Length: %d", ctype, file.Size())
-	w.WriteHeader(http.StatusOK)
-
-	err = filemanager.ReadFileAndWriteToW(w, filePath, buf)
-	if err != nil {
-		s.logger.Errorf("Read File And Write To W Error: %s", err)
-		return
+	default:
+		http.Error(w, fmt.Sprintf("Error: Unrecognized mode %s", mode), http.StatusInternalServerError)
 	}
 }
 
@@ -141,62 +107,44 @@ func (s *Server) spaFileHandler(w http.ResponseWriter, r *http.Request, p httpro
 	fileUrlPath := p.ByName("filepath")
 	filePath := path.Join(s.staticDirPath, ".", fileUrlPath)
 
-	// root requests receive the index.html file
+	// root requests receive the 'index.html' file
 	if fileUrlPath == "/" || fileUrlPath == "" {
 		filePath = indexPath
 	}
 
 	s.logger.Trace(filePath)
 
-	fileinfo, err := os.Stat(filePath)
-	if err != nil {
-		if os.IsNotExist(err) && filePath == indexPath {
-			// index.html not found returns a 404 status
-			s.logger.Error(err)
-			w.WriteHeader(http.StatusNotFound)
-			w.Write([]byte(err.Error()))
-
-		} else if os.IsNotExist(err) {
-			_, err = os.Stat(indexPath)
-			if err != nil && os.IsNotExist(err) {
-				w.WriteHeader(http.StatusNotFound)
-				w.Write([]byte(err.Error()))
-
-			} else if err != nil {
-				// unknown error returns an internal server error
-				s.logger.Error(err)
-				w.WriteHeader(http.StatusInternalServerError)
-				w.Write([]byte(err.Error()))
-			}
-
-			s.logger.Infof("%s Not Found. Responding to the request with the index.html file", filePath)
-			err = s.writeFileToW(w, indexPath)
-			if err != nil {
-				s.logger.Error(err)
-				return
-			}
-
-		} else {
-			// unknown error returns an internal server error
-			s.logger.Error(err)
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(err.Error()))
-		}
-
+	err := sendFileToClient(w, filePath)
+	if err == nil {
+		// FIXME - cliente broken pipe
+		// OK! file successfully sent to the client
 		return
 	}
 
-	if !fileinfo.Mode().IsRegular() {
-		s.logger.Errorf("The file is not regular: %s", fileinfo.Name())
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(w, "The file is not regular: %s", fileinfo.Name())
+	if !errors.Is(err, os.ErrNotExist) {
+		// unknown error returns an internal server error
+		s.logger.Error(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	err = s.writeFileToW(w, filePath)
-	if err != nil {
-		s.logger.Errorf("Write File To W Error: %s", err)
+	// could not find the file path, fallback to 'index.html'
+	s.logger.Infof("%s Not Found. Responding to the request with the index.html", filePath)
+	err = sendFileToClient(w, indexPath)
+	if err == nil {
+		// OK! file successfully sent to the client
+		return
 	}
+
+	if !errors.Is(err, os.ErrNotExist) {
+		// unknown error returns an internal server error
+		s.logger.Error(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// 'index.html' not found returns a 404 status
+	http.Error(w, err.Error(), http.StatusNotFound)
 }
 
 func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
@@ -241,7 +189,7 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request, p httprou
 		s.logger.Infof("multipart/form-data Content-Type: %s, Filename: %s", contentType, fname)
 
 		buf := make([]byte, 4096) // make a buffer to keep chunks that are read
-		fileSent, err := filemanager.ReaderToFile(part, dirPath, fname, s.keepOriginalUploadFileName, buf)
+		fileSent, err := readerToFile(part, dirPath, fname, s.keepOriginalUploadFileName, buf)
 		if err != nil {
 			if errors.Is(err, io.ErrUnexpectedEOF) {
 				s.logger.Errorf("Reader To File error, Client closed the connection: %s", err)
@@ -256,38 +204,6 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request, p httprou
 		}
 		s.logger.Infof("File sent: %s", fileSent)
 	}
-}
-
-func (s *Server) writeFileToW(w http.ResponseWriter, path string) error {
-	fileinfo, err := os.Stat(path)
-	if err != nil {
-		return err
-	}
-
-	if !fileinfo.Mode().IsRegular() {
-		return errors.New("The file is not regular")
-	}
-
-	// FIXME comparar desempenho bufio
-	buf := make([]byte, 4096) // make a buffer to keep chunks that are read
-	ctype, err := getContentType(path, buf)
-	if err != nil {
-		s.logger.Errorf("Get Content-Type error: %s", err)
-		return err
-	}
-
-	w.Header().Set("Content-Type", ctype)
-	w.Header().Set("Content-Length", strconv.FormatInt(fileinfo.Size(), 10))
-	s.logger.Tracef("Content-Type: %s, Content-Length: %s", w.Header().Get("Content-Type"), w.Header().Get("Content-Length"))
-	w.WriteHeader(http.StatusOK)
-
-	err = filemanager.ReadFileAndWriteToW(w, path, buf)
-	if err != nil {
-		s.logger.Errorf("Read File And Write To W Error: %s", err)
-		return err
-	}
-
-	return nil
 }
 
 // helpers
@@ -324,4 +240,141 @@ func formatBytes(b int64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.1f %ciB", float64(b)/float64(div), "KMGTPE"[exp])
+}
+
+func sendFileToClient(w http.ResponseWriter, filepath string) error {
+	fileinfo, err := os.Stat(filepath)
+	if err != nil {
+		return err
+	}
+
+	if !fileinfo.Mode().IsRegular() {
+		return ErrFileIsNotRegular
+	}
+
+	// FIXME comparar desempenho bufio
+	buf := make([]byte, 4096) // make a buffer to keep chunks that are read
+	ctype, err := getContentType(filepath, buf)
+	if err != nil {
+		return fmt.Errorf("Get Content-Type error: %w", err)
+	}
+
+	w.Header().Set("Content-Type", ctype)
+	w.Header().Set("Content-Length", strconv.FormatInt(fileinfo.Size(), 10))
+	w.WriteHeader(http.StatusOK)
+
+	err = readFileAndWriteToW(w, filepath, buf)
+	if err != nil {
+		return fmt.Errorf("Read File And Write To W Error: %w", err)
+	}
+
+	return nil
+}
+
+func sendDirFileListToClient(w http.ResponseWriter, dirpath string) error {
+	fileinfo, err := os.Stat(dirpath)
+	if err != nil {
+		return err
+	}
+
+	if !fileinfo.Mode().IsDir() {
+		return ErrFileIsNotDir
+	}
+
+	dirfileList, err := ioutil.ReadDir(dirpath)
+	if err != nil {
+		return err
+	}
+
+	// Sort by name
+	sort.Slice(dirfileList, func(i, j int) bool {
+		return strings.ToLower(dirfileList[i].Name()) < strings.ToLower(dirfileList[j].Name())
+	})
+
+	t, err := template.New("files").Funcs(template.FuncMap{
+		"formatBytes": formatBytes,
+	}).Parse(templatetmpl.TemplateListFiles)
+	if err != nil {
+		return fmt.Errorf("%w %w", ErrCreateTemplate, err)
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+
+	err = t.Execute(w, dirfileList)
+	if err != nil {
+		return fmt.Errorf("%w %w", ErrExecuteTemplate, err)
+	}
+
+	return nil
+}
+
+func readFileAndWriteToW(w io.Writer, path string, buf []byte) error {
+	file, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	for {
+		// read a chunk
+		n, err := file.Read(buf)
+		if err != nil && err != io.EOF {
+			return err
+		}
+
+		if n == 0 {
+			break
+		}
+
+		// write a chunk
+		if _, err := w.Write(buf[:n]); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func readerToFile(r io.Reader, dir string, fname string, keepOriginalFileName bool, buf []byte) (string, error) {
+	// FIXME file permissions originais
+
+	ext := path.Ext(fname)
+	name := fname[0 : len(fname)-len(ext)]
+	tempFilePattern := name + "-*" + ext
+	tempFile, err := ioutil.TempFile(dir, tempFilePattern)
+	if err != nil {
+		return "", err
+	}
+	defer tempFile.Close()
+
+	for {
+		// read a chunk
+		n, err := r.Read(buf)
+		if err != nil && err != io.EOF {
+			os.Remove(tempFile.Name())
+			return "", err
+		}
+
+		if n == 0 {
+			break
+		}
+
+		// write a chunk
+		if _, err := tempFile.Write(buf[:n]); err != nil {
+			os.Remove(tempFile.Name())
+			return "", err
+		}
+	}
+
+	if keepOriginalFileName {
+		finalFileName := path.Join(dir, fname)
+		err = os.Rename(tempFile.Name(), path.Join(dir, fname))
+		if err != nil {
+			return "", err
+		}
+		return finalFileName, nil
+	}
+
+	return tempFile.Name(), nil
 }

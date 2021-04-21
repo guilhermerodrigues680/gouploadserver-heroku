@@ -1,0 +1,12 @@
+main {
+  animation: colortransition 2s linear 0s infinite alternate;
+}
+
+h1::after { 
+  content: " - CSS works!";
+}
+
+@keyframes colortransition {
+  from {background-color: red;}
+  to {background-color: yellow;}
+}

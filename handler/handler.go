@@ -16,8 +16,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/guilhermerodrigues680/gouploadserver/handler/templatetmpl"
-
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
 )
@@ -293,7 +291,7 @@ func sendDirFileListToClient(w http.ResponseWriter, dirpath string) error {
 
 	t, err := template.New("files").Funcs(template.FuncMap{
 		"formatBytes": formatBytes,
-	}).Parse(templatetmpl.TemplateListFiles)
+	}).Parse(TemplateListFiles)
 	if err != nil {
 		return fmt.Errorf("%w %w", ErrCreateTemplate, err)
 	}

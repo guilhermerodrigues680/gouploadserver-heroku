@@ -1,4 +1,6 @@
-<!DOCTYPE html>
+package handler
+
+const TemplateListFiles = `<!DOCTYPE html>
 <html lang="pt-br">
 <head>
   <meta charset="UTF-8">
@@ -298,4 +300,4 @@
     }
   </script>
 </body>
-</html>
+</html>`

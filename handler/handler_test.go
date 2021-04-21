@@ -83,6 +83,56 @@ func TestFileHandlerStream(t *testing.T) {
 	}
 }
 
+func TestSpaFileHandlerStream(t *testing.T) {
+	req, err := http.NewRequest(http.MethodGet, "/random-url-12345", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rr := httptest.NewRecorder()
+	// spaMode = true
+	s := NewServer("../test/spa/dist/", false, true, logrus.WithField("test", true))
+
+	s.ServeHTTP(rr, req)
+	if status := rr.Code; status != http.StatusOK {
+		t.Fatalf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+	}
+
+	if contentType := rr.Header().Get("Content-Type"); contentType != "text/html; charset=utf-8" {
+		t.Fatalf("handler returned wrong header Location: got %v want %v", contentType, "text/html; charset=utf-8")
+	}
+
+	var bufferR bytes.Buffer
+	name := path.Join(s.staticDirPath, "index.html")
+	buf := make([]byte, 4096)
+	readFileAndWriteToW(&bufferR, name, buf)
+
+	bufferF, err := ioutil.ReadAll(rr.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(bufferR.Bytes(), bufferF) {
+		t.Fatalf("handler returned wrong body: got file size %v want file size %v", bufferR.Len(), len(bufferF))
+	}
+}
+
+func TestSpaFileHandlerIndexNotFound(t *testing.T) {
+	req, err := http.NewRequest(http.MethodGet, "/random-url-12345", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rr := httptest.NewRecorder()
+	// spaMode = true
+	s := NewServer("../test/", false, true, logrus.WithField("test", true))
+
+	s.ServeHTTP(rr, req)
+	if status := rr.Code; status != http.StatusNotFound {
+		t.Fatalf("handler returned wrong status code: got %v want %v", status, http.StatusNotFound)
+	}
+}
+
 func TestUploadHandlerStream(t *testing.T) {
 	s := NewServer("..", false, false, logrus.WithField("test", true))
 	filepath := "/test/mimetype/yolinux-mime-test.gif"

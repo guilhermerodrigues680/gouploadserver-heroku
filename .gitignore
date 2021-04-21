@@ -1,5 +1,6 @@
 # binary files
 /bin
+/dist
 __debug_bin
 
 # ignore some test files 

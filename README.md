@@ -4,7 +4,7 @@
 
 O **GO Upload Server** foi escrito para ser agil e permitir a inicialização rápida de um servidor de arquivos a partir de um diretório.
 
-O **GO Upload Server** faz leitura e escrita usando buffers o que faz ele consumir pouquissima memoria (small memory footprint).
+Ele faz leitura e escrita usando buffers o que faz ele consumir pouquissima memoria (small memory footprint).
 
 *Nota: Embora **GO Upload Server** seja uma ótima maneira de servir facilmente arquivos de um diretório, ele não deve ser usado em um ambiente de produção pois ele não implementa verificações de segurança.*
 
@@ -86,24 +86,36 @@ Options are:
 
 ## Configuração do projeto para desenvolvimento
 
-Requer o GO v1.16+
-
-Use o make para 
+**\* Requer o GO v1.16+**
 
 ```sh
-make build
-
-# run:
-./bin/gouploadserver
+$ git clone https://github.com/guilhermerodrigues680/gouploadserver.git
 ```
 
-### Installation
+O Makefile possui intruções para compilar o projeto:
+
+```sh
+# make build compila para diversas plataformas
+make build
+
+# output bin/gouploadserver-<version>-<os><arch>
+```
+
+```sh
+# make cross compila somente para plataforma atual
+make cross
+
+# output bin/gouploadserver
+```
+
+### Instalação a partir do código do projeto
 
 ```sh
 make install
+# ou
+go install
 
-# run:
-gouploadserver
+# output: $GOPATH/bin/gouploadserver
 ```
 
 ## Versionamento
@@ -113,13 +125,13 @@ Este projeto segue o [Versionamento Semântico 2.0.0](https://semver.org/lang/pt
 <!-- ## Changelog -->
 <!-- https://keepachangelog.com/en/1.0.0/ -->
 
-## License
+## Licença
 Este projeto está licenciado sob os termos da licença MIT. Veja [LICENSE](./LICENSE).
 
-## Annotations
+## Anotações
 
 <details>
-<summary>Annotations</summary>
+<summary>Anotações</summary>
 <br>
 - https://www.digitalocean.com/community/tutorials/how-to-build-and-install-go-programs-pt
 - https://golang.org/doc/tutorial/compile-install

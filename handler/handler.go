@@ -293,7 +293,7 @@ func sendDirFileListToClient(w http.ResponseWriter, dirpath string) error {
 		"formatBytes": formatBytes,
 	}).Parse(TemplateListFiles)
 	if err != nil {
-		return fmt.Errorf("%w %w", ErrCreateTemplate, err)
+		return fmt.Errorf("%w %s", ErrCreateTemplate, err)
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -301,7 +301,7 @@ func sendDirFileListToClient(w http.ResponseWriter, dirpath string) error {
 
 	err = t.Execute(w, dirfileList)
 	if err != nil {
-		return fmt.Errorf("%w %w", ErrExecuteTemplate, err)
+		return fmt.Errorf("%w %s", ErrExecuteTemplate, err)
 	}
 
 	return nil

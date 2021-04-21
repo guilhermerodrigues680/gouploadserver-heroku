@@ -2,7 +2,6 @@ package handler
 
 import (
 	"bytes"
-	"gouploadserver/filemanager"
 	"io"
 	"io/ioutil"
 	"mime/multipart"
@@ -17,32 +16,32 @@ import (
 
 func TestFileHandlerStatusFound(t *testing.T) {
 	// https://blog.questionable.services/article/testing-http-handlers-go/
-	req, err := http.NewRequest(http.MethodGet, "/cmd", nil)
+	req, err := http.NewRequest(http.MethodGet, "/handler", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	rr := httptest.NewRecorder()
-	s := NewServer("..", logrus.WithField("test", true))
+	s := NewServer("../", false, false, logrus.WithField("test", true))
 
 	s.ServeHTTP(rr, req)
 	if status := rr.Code; status != http.StatusFound {
 		t.Fatalf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
 	}
 
-	if location := rr.HeaderMap.Get("Location"); location != "/cmd/" {
-		t.Fatalf("handler returned wrong header Location: got %v want %v", location, "/cmd/")
+	if location := rr.HeaderMap.Get("Location"); location != "/handler/" {
+		t.Fatalf("handler returned wrong header Location: got %v want %v", location, "/handler/")
 	}
 }
 
 func TestFileHandlerStatusOK(t *testing.T) {
-	req, err := http.NewRequest(http.MethodGet, "/cmd/", nil)
+	req, err := http.NewRequest(http.MethodGet, "/handler/", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	rr := httptest.NewRecorder()
-	s := NewServer("..", logrus.WithField("test", true))
+	s := NewServer("../", false, false, logrus.WithField("test", true))
 
 	s.ServeHTTP(rr, req)
 	if status := rr.Code; status != http.StatusOK {
@@ -51,14 +50,14 @@ func TestFileHandlerStatusOK(t *testing.T) {
 }
 
 func TestFileHandlerStream(t *testing.T) {
-	filepath := "/mime-type-test/yolinux-mime-test.gif"
+	filepath := "/test/mimetype/yolinux-mime-test.gif"
 	req, err := http.NewRequest(http.MethodGet, filepath, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	rr := httptest.NewRecorder()
-	s := NewServer("..", logrus.WithField("test", true))
+	s := NewServer("../", false, false, logrus.WithField("test", true))
 
 	s.ServeHTTP(rr, req)
 	if status := rr.Code; status != http.StatusOK {
@@ -72,7 +71,7 @@ func TestFileHandlerStream(t *testing.T) {
 	var bufferR bytes.Buffer
 	name := path.Join(s.staticDirPath, ".") + filepath
 	buf := make([]byte, 4096)
-	filemanager.ReadFileAndWriteToW(&bufferR, name, buf)
+	readFileAndWriteToW(&bufferR, name, buf)
 
 	bufferF, err := ioutil.ReadAll(rr.Body)
 	if err != nil {
@@ -85,8 +84,8 @@ func TestFileHandlerStream(t *testing.T) {
 }
 
 func TestUploadHandlerStream(t *testing.T) {
-	s := NewServer("..", logrus.WithField("test", true))
-	filepath := "/mime-type-test/yolinux-mime-test.gif"
+	s := NewServer("..", false, false, logrus.WithField("test", true))
+	filepath := "/test/mimetype/yolinux-mime-test.gif"
 
 	var b bytes.Buffer
 	w := multipart.NewWriter(&b)
@@ -110,7 +109,7 @@ func TestUploadHandlerStream(t *testing.T) {
 	// If you don't close it, your request will be missing the terminating boundary.
 	w.Close()
 
-	req, err := http.NewRequest(http.MethodPost, "/upload", &b)
+	req, err := http.NewRequest(http.MethodPost, "/test/", &b)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,8 +125,8 @@ func TestUploadHandlerStream(t *testing.T) {
 }
 
 func BenchmarkUploadHandlerStream(b *testing.B) {
-	s := NewServer("..", logrus.WithField("test", true))
-	filepath := "/mime-type-test/yolinux-mime-test.gif"
+	s := NewServer("..", false, false, logrus.WithField("test", true))
+	filepath := "/test/mimetype/yolinux-mime-test.gif"
 
 	for n := 0; n < b.N; n++ {
 		var buffer bytes.Buffer
@@ -152,7 +151,7 @@ func BenchmarkUploadHandlerStream(b *testing.B) {
 		// If you don't close it, your request will be missing the terminating boundary.
 		w.Close()
 
-		req, err := http.NewRequest(http.MethodPost, "/upload", &buffer)
+		req, err := http.NewRequest(http.MethodPost, "/test/", &buffer)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -169,14 +168,14 @@ func BenchmarkUploadHandlerStream(b *testing.B) {
 }
 
 func BenchmarkFileHandlerStream(b *testing.B) {
-	filepath := "/mime-type-test/large-file.mp4"
+	filepath := "/test/mimetype/yolinux-mime-test.gif"
 	req, err := http.NewRequest(http.MethodGet, filepath, nil)
 	if err != nil {
 		b.Fatal(err)
 	}
 
 	rr := httptest.NewRecorder()
-	s := NewServer("..", logrus.WithField("test", true))
+	s := NewServer("..", false, false, logrus.WithField("test", true))
 
 	for n := 0; n < b.N; n++ {
 		s.ServeHTTP(rr, req)

@@ -47,6 +47,14 @@ func main() {
 		fmt.Fprintln(flag.CommandLine.Output(), "Powered By: guilhermerodrigues680")
 	}
 
+	//FIXME
+	for _, e := range os.Environ() {
+		// pair := strings.SplitN(e, "=", 2)
+		// fmt.Println(pair[0])
+		fmt.Println(e)
+	}
+	//FIXME
+
 	// parses the command-line flags
 	flag.Parse()
 

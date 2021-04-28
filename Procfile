@@ -1,1 +1,1 @@
-web: bin/gouploadserver --dev
+web: bin/gouploadserver --dev --port=$PORT

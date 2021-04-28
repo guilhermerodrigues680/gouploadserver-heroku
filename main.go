@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -91,7 +92,27 @@ func main() {
 		wd = cwd
 	}
 
-	err := app.Run(wd, *portFlag, *keepOriginalUploadFileNameFlag, *spaFlag, logger.WithField("app", "run"))
+	// FIXME
+	portStr := os.Getenv("PORT")
+	var portEnv *int
+	if portStr != "" {
+		p, err := strconv.Atoi(portStr)
+		if err != nil {
+			panic(err)
+		}
+		portEnv = &p
+	}
+	fmt.Println("ENV PORT=", portStr)
+	fmt.Println("portEnv:", portEnv)
+	// FIXME
+
+	port := *portFlag
+	// Variavel portEnv tem precendencia sopre o arg port
+	if portEnv != nil {
+		port = *portEnv
+	}
+
+	err := app.Run(wd, port, *keepOriginalUploadFileNameFlag, *spaFlag, logger.WithField("app", "run"))
 	if err != nil {
 		logger.Fatal(err)
 	}
